@@ -1,6 +1,12 @@
 ## How to run
 
+Run an Angular App in order to avoid *Invalid Header Error*: 
+    
     ng serve --disable-host-check
+
+How to run ts-tunnelserver for orverriding default configuration:
+
+    npm run start -- -p 81
 
 ## References
 

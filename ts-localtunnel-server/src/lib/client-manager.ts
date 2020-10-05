@@ -1,14 +1,11 @@
-import Debug from 'debug';
-
-import { ClientUrlGenerator } from '../utils/client-url-generator';
+import { ClientIdGenerator } from '../utils/client-id-generator';
+import { Logger } from '../utils/logger';
 import { Client } from './client';
 import { TunnelAgent } from './tunnel-agent';
-// import { hri } from 'human-readable-ids';
 
 export class ClientManager {
     private opt: any;
     private clients: Map<string, Client>;
-    private debug: Debug.Debugger;
     private graceTimeout: any;
 
     private _stats: any;
@@ -27,8 +24,6 @@ export class ClientManager {
             tunnels: 0
         };
 
-        this.debug = Debug('lt:ClientManager');
-
         // This is totally wrong :facepalm: this needs to be per-client...
         this.graceTimeout = null;
     }
@@ -41,19 +36,23 @@ export class ClientManager {
         const stats = this.stats;
 
         // can't ask for id already is use
-        if (this.clients.has(id)) {            
-            id = ClientUrlGenerator.generate();
+        const exist = this.clients.has(id);
+        Logger.log('id %s exist? %s', id, exist);
+        if (exist) {            
+            id = ClientIdGenerator.generate();
+            Logger.log('new id %s', id);
         }
 
         const maxSockets = this.opt.max_tcp_sockets;
+        Logger.log('max tcp sockets %s', maxSockets);
         const agent = new TunnelAgent({
             clientId: id,
-            maxSockets: 10,
+            maxSockets: maxSockets
         });
 
         const client = new Client({
             id,
-            agent,
+            agent
         });
 
         // add to clients map immediately
@@ -61,7 +60,7 @@ export class ClientManager {
         clients.set(id, client);
 
         client.emitter.once('close', () => {
-            console.log('client close from emitter once');
+            Logger.log('client close from emitter once');
             this.removeClient(id);
         });
 
@@ -72,11 +71,11 @@ export class ClientManager {
             return {
                 id: id,
                 port: info.port,
-                max_conn_count: maxSockets,
+                max_conn_count: maxSockets
             };
         }
         catch (err) {
-            console.log(err);
+            Logger.log(err);
             this.removeClient(id);
             // rethrow error for upstream to handle
             throw err;
@@ -84,7 +83,7 @@ export class ClientManager {
     }
 
     removeClient(id: any) {
-        console.log('removing client: %s', id);
+        Logger.log('removing client: %s', id);
         const client = this.clients.get(id);
         if (!client) {
             return;

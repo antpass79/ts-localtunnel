@@ -1,87 +1,75 @@
-import { ClientUrlGenerator } from './utils/client-url-generator';
-import tldjs, { fromUserSettings } from 'tldjs';
+import { ClientIdGenerator } from '../utils/client-id-generator';
+import tldjs, { extractHostname, fromUserSettings, getDomain, getPublicSuffix, getSubdomain, isValid, isValidHostname, parse, tldExists } from 'tldjs';
 import Koa from 'koa';
 import Router from 'koa-router';
-import http from 'http';
-import https from 'https';
-import fs from 'fs';
+import http, { IncomingMessage, ServerResponse } from 'http';
 import { AddressInfo } from 'net';
 
-import { ClientManager } from './lib/client-manager';
+import { ClientManager } from './client-manager';
+import { Logger, LogScope } from '../utils/logger';
+import { initTunnelServerOptions, ITunnelServerOptions } from '../models/tunnel-server-options';
+import { Http2ServerRequest, Http2ServerResponse } from 'http2';
 
-export class ServerProxy {
-    private opt: any;
-
-    private myTldjs: any;
-    private landingPage: string;
-
+export class TunnelServer {
+    private options: ITunnelServerOptions;
+    private tldjs: {
+        extractHostname: typeof extractHostname,
+        isValidHostname: typeof isValidHostname,
+        isValid: typeof isValid,
+        parse: typeof parse,
+        tldExists: typeof tldExists,
+        getPublicSuffix: typeof getPublicSuffix,
+        getDomain: typeof getDomain,
+        getSubdomain: typeof getSubdomain,
+        fromUserSettings: typeof fromUserSettings
+    };
     private schema: string;
+    private appCallback: (req: IncomingMessage | Http2ServerRequest, res: ServerResponse | Http2ServerResponse) => Promise<void>;
 
-    private _server: http.Server;
-    get server(): http.Server {
-        return this._server;
-    }
-    private appCallback: any;
-
+    private server: http.Server;
     private manager: ClientManager;
-    private app: Koa;
+    private koa: Koa;
     private router: Router;
 
-    constructor(opt?: any) {
-        this.opt = opt || {};
-        console.log('Options:');
-        console.log(this.opt);
+    constructor(options?: ITunnelServerOptions) {
+        this.options = options || initTunnelServerOptions();
+        const logScope: LogScope = new LogScope("TUNNEL SERVER - OPTIONS");
+        logScope.dump(this.options);
 
-        let validHosts = (this.opt.domains) ? this.opt.domains : undefined;
-        this.myTldjs = tldjs.fromUserSettings({ validHosts });
+        let validHosts = (this.options.domains) ? this.options.domains : undefined;
+        this.tldjs = tldjs.fromUserSettings({ validHosts });
 
-        this.landingPage = this.opt.landing || 'https://localtunnel.github.io/www/';
-        this.schema = this.opt.secure ? 'https' : 'http';
+        this.schema = this.options.secure ? 'https' : 'http';
 
-        this.manager = new ClientManager(this.opt);
-        this.app = new Koa();
+        this.manager = new ClientManager(this.options);
+        this.koa = new Koa();
         this.router = new Router();
 
-        this.listenRouter();
-
+        this.listenRoutes();
         this.configure();
 
-        this._server = http.createServer();
-
-        // const options = {
-        //     key: fs.readFileSync('cert/key.pem'),
-        //     cert: fs.readFileSync('cert/cert.pem')
-        //   };        
-        // this._server = https.createServer(options, (req, res) => {
-        //     res.writeHead(200);
-        //     res.end("hello world\n");            
-        // });
-
-        this.appCallback = this.app.callback();
+        this.server = http.createServer();
+        this.appCallback = this.koa.callback();
 
         this.listenServer();
     }
 
-    start(handle: any) {
-        this.server.listen(handle);
-    }
-
-    stop(handle: any) {
-        this.server.close(handle);
-    }
-
-    get address(): AddressInfo {
-        return this.server.address() as AddressInfo;
+    listen(port: number, address: string) {
+        this.server.listen(port, address, () => {
+            Logger.log('server listening on address %s://%s:%s', this.schema, this.addressInfo.address, this.addressInfo.port);
+        });
     }
 
     private configure() {
-        this.app.use(this.router.routes());
-        this.app.use(this.router.allowedMethods());
+        this.koa.use(this.router.routes());
+        this.koa.use(this.router.allowedMethods());
     
         // root endpoint
-        this.app.use(async (ctx: any, next: any) => {
+        this.koa.use(async (ctx: any, next: any) => {
+            const logScope: LogScope = new LogScope("TUNNEL SERVER - ROOT");
+
             const path = ctx.request.path;
-    
+            logScope.log("path %s", path);
             // skip anything not on the root path
             if (path !== '/') {
                 await next();
@@ -89,26 +77,29 @@ export class ServerProxy {
             }
     
             const isNewClientRequest = ctx.query['new'] !== undefined;
+            logScope.log('isNewClientRequest? %s', isNewClientRequest);
             if (isNewClientRequest) {
-                const reqId = ClientUrlGenerator.generate();
-                console.log('isNewClientRequest - making new client with id %s', reqId);
+                const reqId = ClientIdGenerator.generate();
+                logScope.log('making new client with id %s', reqId);
+
                 const info = await this.manager.newClient(reqId);
-    
-                // ANTO const url = this.schema + '://' + info.id + '.' + ctx.request.host;
                 const url = this.buildUrl(info, ctx.request.host);
 
                 info.url = url;
                 ctx.body = info;
+
                 return;
             }
     
             // no new client request, send to landing page
-            ctx.redirect(this.landingPage);
+            logScope.log('redirect to %s', this.options.landingPage);
+            ctx.redirect(this.options.landingPage);
         });
     
         // anything after the / path is a request for a specific client name
         // This is a backwards compat feature
-        this.app.use(async (ctx: any, next: any) => {
+        this.koa.use(async (ctx: any, next: any) => {
+            const logScope: LogScope = new LogScope("TUNNEL SERVER - MULTIPART");
             const parts = ctx.request.path.split('/');
     
             // any request with several layers of paths is not allowed
@@ -120,6 +111,7 @@ export class ServerProxy {
             }
     
             const reqId = parts[1];
+            logScope.log('clientId %s', reqId);
     
             // limit requested hostnames to 63 characters
             if (! /^(?:[a-z0-9][a-z0-9\-]{4,63}[a-z0-9]|[a-z0-9]{4,63})$/.test(reqId)) {
@@ -131,11 +123,9 @@ export class ServerProxy {
                 return;
             }
     
-            console.log('making new client with id %s', reqId);
+            logScope.log('making new client with id %s', reqId);
             const info = await this.manager.newClient(reqId);
-    
-            // ANTO const url = this.schema + '://' + info.id + '.' + ctx.request.host;
-            const url = this.buildUrl(info, ctx.request.host);
+                const url = this.buildUrl(info, ctx.request.host);
 
             info.url = url;
             ctx.body = info;
@@ -143,23 +133,10 @@ export class ServerProxy {
         });    
     }
 
-    private _slug = '/?slug=';
-    private getClientIdFromHostname(hostname: string): string {
-        // let index = hostname.lastIndexOf(this._slug);
-        // if (index === -1)
-        //     return '';
-        // return hostname.substr(index + this._slug.length);
-        return this.myTldjs.getSubdomain(hostname);
-    }
-
-    private buildUrl(info: any, host: string) {
-        const url = this.schema + '://' + info.id + '.' + host;
-        //const url = this.schema + '://' + host + this._slug + info.id;
-        return url;
-    }
-
-    private listenRouter() {
+    private listenRoutes() {
         this.router.get('/api/status', async (ctx, next) => {
+            const logScope: LogScope = new LogScope("TUNNEL SERVER - /api/status");
+
             const stats = this.manager.stats;
             ctx.body = {
                 tunnels: stats.tunnels,
@@ -168,7 +145,11 @@ export class ServerProxy {
         });
     
         this.router.get('/api/tunnels/:id/status', async (ctx, next) => {
+            const logScope: LogScope = new LogScope("TUNNEL SERVER - /api/tunnels/:id/status");
+
             const clientId = ctx.params.id;
+            logScope.log('clientId %s', clientId);
+
             const client = this.manager.getClient(clientId);
             if (!client) {
                 ctx.throw(404);
@@ -184,11 +165,12 @@ export class ServerProxy {
 
     private listenServer() {
         this.server.on('request', (req: any, res: any) => {
+            const logScope: LogScope = new LogScope("TUNNEL SERVER - REQUEST");
+            logScope.log('url: %s', req.url);
 
             // without a hostname, we won't know who the request is for
             const hostname = req.headers.host;
-            console.log('request with hostname: %s', hostname);
-
+            logScope.log('hostname: %s', hostname);
             if (!hostname) {
                 res.statusCode = 400;
                 res.end('Host header is required');
@@ -196,7 +178,7 @@ export class ServerProxy {
             }
     
             const clientId = this.getClientIdFromHostname(hostname);
-            console.log('hostname %s - clientId %s from getClientIdFromHostname', hostname, clientId);
+            logScope.log('clientId %s', clientId);
             if (!clientId) {
                 this.appCallback(req, res);
                 return;
@@ -213,15 +195,18 @@ export class ServerProxy {
         });
     
         this.server.on('upgrade', (req, socket, head) => {
-            console.log('upgrade');
+            const logScope: LogScope = new LogScope("TUNNEL SERVER - UPGRADE");
+            logScope.log('url: %s', req.url);
 
             const hostname = req.headers.host;
+            logScope.log('hostname: %s', hostname);
             if (!hostname) {
                 socket.destroy();
                 return;
             }
     
             const clientId = this.getClientIdFromHostname(hostname);
+            logScope.log('clientId: %s', clientId);
             if (!clientId) {
                 socket.destroy();
                 return;
@@ -236,4 +221,16 @@ export class ServerProxy {
             client.handleUpgrade(req, socket);
         });
     }
+ 
+    private get addressInfo(): AddressInfo {
+        return this.server.address() as AddressInfo;
+    }
+    
+    private getClientIdFromHostname(hostname: string): string | null {
+        return this.tldjs.getSubdomain(hostname);
+    }
+
+    private buildUrl(info: any, host: string) {
+        return this.schema + '://' + info.id + '.' + host;
+    }    
 }

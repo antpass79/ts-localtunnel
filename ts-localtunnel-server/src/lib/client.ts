@@ -1,10 +1,9 @@
-import Debug from 'debug';
 import { EventEmitter } from 'events';
 import pump from 'pump';
 import http from 'http';
+import { Logger } from '../utils/logger';
 
 export class Client {
-    private debug: Debug.Debugger;
     private graceTimeout: any;
     private id: any;
     private agent: any;
@@ -17,8 +16,6 @@ export class Client {
     constructor(options: any) {
         this.agent = this.agent = options.agent;
         this.id = this.id = options.id;
-
-        this.debug = Debug(`lt:Client[${this.id}]`);
 
         // client is given a grace period in which they can connect before they are _removed_
         // this.graceTimeout = setTimeout(() => {
@@ -35,14 +32,15 @@ export class Client {
     }
 
     close() {
-        console.log('client is closed by close method');        
+        Logger.log('client is closed by close method');        
         clearTimeout(this.graceTimeout);
         this.agent.destroy();
         this.emitter.emit('close');
     }
 
     handleRequest(req: any, res: any) {
-        console.log('> %s', req.url);
+        Logger.log('READ from url %s', req.url);
+
         const opt = {
             path: req.url,
             agent: this.agent,
@@ -51,19 +49,22 @@ export class Client {
         };
 
         const clientReq = http.request(opt, (clientRes: any) => {
-            console.log('< %s', req.url);
+            Logger.log('CLIENT - HANDLE REQUEST - BEFORE WRITE to url %s', req.url);
             // write response code and headers
             res.writeHead(clientRes.statusCode, clientRes.headers);
 
+            Logger.log('CLIENT - HANDLE REQUEST - AFTER WRITE');
             // using pump is deliberate - see the pump docs for why
             pump(clientRes, res);
+
+            Logger.log('CLIENT - HANDLE REQUEST - AFTER PUMP');
         });
 
         // this can happen when underlying agent produces an error
         // in our case we 504 gateway error this?
         // if we have already sent headers?
         clientReq.once('error', (err) => {
-            console.log('clientReq error');
+            Logger.log('CLIENT - HANDLE REQUEST - clientReq error');
             // TODO(roman): if headers not sent - respond with gateway unavailable
         });
 
@@ -72,18 +73,19 @@ export class Client {
     }
 
     handleUpgrade(req: any, socket: any) {
-        console.log('> [up] %s', req.url);
+        Logger.log('READ from %s', req.url);
+        
         socket.once('error', (err: any) => {
             // These client side errors can happen if the client dies while we are reading
             // We don't need to surface these in our logs.
             if (err.code == 'ECONNRESET' || err.code == 'ETIMEDOUT') {
                 return;
             }
-            console.error(err);
+            Logger.error(err);
         });
 
         this.agent.createConnection({}, (err: any, conn: any) => {
-            console.log('< [up] %s', req.url);
+            Logger.log('CLIENT - HANDLE UPGRADE - WRITE from %s', req.url);
             // any errors getting a connection mean we cannot service this request
             if (err) {
                 socket.end();
@@ -117,12 +119,12 @@ export class Client {
 
     private listenAgent() {
         this.agent.on('online', () => {
-            console.log('client online %s', this.id);
+            Logger.log('client online %s', this.id);
             clearTimeout(this.graceTimeout);
         });
 
         this.agent.on('offline', () => {
-            console.log('client offline %s', this.id);
+            Logger.log('client offline %s', this.id);
 
             // if there was a previous timeout set, we don't want to double trigger
             clearTimeout(this.graceTimeout);

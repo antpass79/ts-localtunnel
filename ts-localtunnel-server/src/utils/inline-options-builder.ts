@@ -1,6 +1,5 @@
 import yargs from 'yargs';
 import { initTunnelServerOptions, ITunnelServerOptions } from "../models/tunnel-server-options";
-import { Logger } from './logger';
 
 export class InlineOptionsBuilder {
     build(): ITunnelServerOptions {
@@ -43,7 +42,7 @@ export class InlineOptionsBuilder {
         options.secure = argv.secure;
         options.address = argv.address;
         options.port = argv.port;
-        options.max_tcp_sockets = argv["max-sockets"];
+        options.maxTcpSockets = argv["max-sockets"];
         options.domains = argv.domains;
 
         return options;

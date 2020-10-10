@@ -4,38 +4,39 @@ import { Server as WebSocketServer } from 'ws';
 import WebSocket from 'ws';
 import net from 'net';
 
-import { ServerProxy } from '../server-proxy';
+import { TunnelServer } from '../lib/tunnel-server';
+import { initTunnelServerOptions } from '../models/tunnel-server-options';
 
 describe('server', () => {
     context('Start and Stop', () => {
-        let serverProxy = new ServerProxy();
+        let tunnelServer = new TunnelServer();
 
         it('the server starts', async () => {
-            await new Promise(resolve => serverProxy.start(resolve));
+            await new Promise(resolve => tunnelServer.start(resolve));
         });
         it('the server stops', async () => {
-            await new Promise(resolve => serverProxy.stop(resolve));
+            await new Promise(resolve => tunnelServer.stop(resolve));
         });
     });
 
     context('Response', () => {
         it('should redirect root requests to landing page', async () => {
-            let serverProxy = new ServerProxy();
-            const response = await request(serverProxy.server).get('/');
+            let tunnelServer = new TunnelServer();
+            const response = await request(tunnelServer.server).get('/');
 
             assert.strictEqual('https://localtunnel.github.io/www/', response.headers.location);
         });
-        it('should support custom base domains', async () => {    
-            let serverProxy = new ServerProxy({
-                domain: 'domain.example.com'
-            });
-            const response = await request(serverProxy.server).get('/');
+        it('should support custom base domains', async () => {   
+            const options = initTunnelServerOptions();
+            options.domains = ['domain.example.com'];
+            const tunnelServer = new TunnelServer(options);
+            const response = await request(tunnelServer.server).get('/');
 
             assert.strictEqual('https://localtunnel.github.io/www/', response.headers.location);
         });
         it('reject long domain name requests', async () => {
-            let serverProxy = new ServerProxy();
-            const response = await request(serverProxy.server).get('/thisdomainisoutsidethesizeofwhatweallowwhichissixtythreecharacters');
+            let tunnelServer = new TunnelServer();
+            const response = await request(tunnelServer.server).get('/thisdomainisoutsidethesizeofwhatweallowwhichissixtythreecharacters');
 
             assert.strictEqual(response.body.message, 'Invalid subdomain. Subdomains must be lowercase and between 4 and 63 alphanumeric characters.');
         });    
@@ -44,12 +45,12 @@ describe('server', () => {
     context('WebSockets', () => {
         it('should upgrade websocket requests', async () => {
             const hostname = 'websocket-test';
-            const serverProxy = new ServerProxy({
-                domain: 'example.com',
-            });
-            await new Promise(resolve => serverProxy.start(resolve));
+            const options = initTunnelServerOptions();
+            options.domains = ['example.com'];
+            const tunnelServer = new TunnelServer(options);
+            await new Promise(resolve => tunnelServer.start(resolve));
     
-            const res = await request(serverProxy.server).get('/websocket-test');
+            const res = await request(tunnelServer.server).get('/websocket-test');
             const localTunnelPort = res.body.port;
     
             const wss: WebSocketServer = await new Promise((resolve) => {
@@ -70,7 +71,7 @@ describe('server', () => {
                 });
             });
     
-            const ws = new WebSocket('http://localhost:' + serverProxy.address.port, {
+            const ws = new WebSocket('http://localhost:' + tunnelServer.addressInfo.port, {
                 headers: {
                     host: hostname + '.example.com',
                 }
@@ -88,33 +89,33 @@ describe('server', () => {
             });
     
             wss.close();
-            await new Promise(resolve => serverProxy.stop(resolve));
+            await new Promise(resolve => tunnelServer.stop(resolve));
         });    
     });
 
     context('Tunnel', () => {
         it('should support the /api/tunnels/:id/status endpoint', async () => {
-            const serverProxy = new ServerProxy();
-            await new Promise(resolve => serverProxy.start(resolve));
+            const tunnelServer = new TunnelServer();
+            await new Promise(resolve => tunnelServer.start(resolve));
     
             // no such tunnel yet
-            const res: any = await request(serverProxy.server).get('/api/tunnels/foobar-test/status');
+            const res: any = await request(tunnelServer.server).get('/api/tunnels/foobar-test/status');
             assert.equal(res.statusCode, 404);
     
             // request a new client called foobar-test
             {
-                const res = await request(serverProxy.server).get('/foobar-test');
+                const res = await request(tunnelServer.server).get('/foobar-test');
             }
     
             {
-                const res: any = await request(serverProxy.server).get('/api/tunnels/foobar-test/status');
+                const res: any = await request(tunnelServer.server).get('/api/tunnels/foobar-test/status');
                 assert.equal(res.statusCode, 200);
                 assert.deepEqual(res.body, {
                     connected_sockets: 0,
                 });
             }
     
-            await new Promise(resolve => serverProxy.stop(resolve));
+            await new Promise(resolve => tunnelServer.stop(resolve));
         });
     });
 });

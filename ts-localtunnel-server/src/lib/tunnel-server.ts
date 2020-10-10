@@ -26,7 +26,6 @@ export class TunnelServer {
     private schema: string;
     private appCallback: (req: IncomingMessage | Http2ServerRequest, res: ServerResponse | Http2ServerResponse) => Promise<void>;
 
-    private server: http.Server;
     private manager: ClientManager;
     private koa: Koa;
     private router: Router;
@@ -48,16 +47,40 @@ export class TunnelServer {
         this.listenRoutes();
         this.configure();
 
-        this.server = http.createServer();
+        this._server = http.createServer();
         this.appCallback = this.koa.callback();
 
         this.listenServer();
+    }
+
+    private _server: http.Server;
+    get server() {
+        return this._server;
+    }
+
+    get addressInfo(): AddressInfo {
+        return this.server.address() as AddressInfo;
     }
 
     listen(port: number, address: string) {
         this.server.listen(port, address, () => {
             Logger.log('server listening on address %s://%s:%s', this.schema, this.addressInfo.address, this.addressInfo.port);
         });
+    }
+
+    start(handle: any) {
+        this.server.listen(handle, () => {
+            if (this.addressInfo) {
+                Logger.log('server listening on address %s://%s:%s', this.schema, this.addressInfo.address, this.addressInfo.port);
+            }
+            else {
+                Logger.log('server listening on fake address');
+            }
+        });
+    }
+
+    stop(handle: any) {
+        this.server.close(handle);
     }
 
     private configure() {
@@ -220,10 +243,6 @@ export class TunnelServer {
     
             client.handleUpgrade(req, socket);
         });
-    }
- 
-    private get addressInfo(): AddressInfo {
-        return this.server.address() as AddressInfo;
     }
     
     private getClientIdFromHostname(hostname: string): string | null {

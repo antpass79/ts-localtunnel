@@ -7,7 +7,7 @@ export interface ITunnelServerOptions {
     secure: boolean,
     address: string,
     port: number,
-    max_tcp_sockets: number,
+    maxTcpSockets: number,
     domains?: string[],
     landingPage?: string
 }
@@ -17,7 +17,7 @@ export function initTunnelServerOptions(): ITunnelServerOptions {
         secure: NodeConfig.getValue<boolean>("SECURE_PROTOCOL"),
         address: NodeConfig.getValue<string>("SERVER_ADDRESS"),
         port: NodeConfig.getValue<number>("SERVER_PORT"),
-        max_tcp_sockets: NodeConfig.getValue<number>("MAX_SOCKETS"),
+        maxTcpSockets: NodeConfig.getValue<number>("MAX_SOCKETS"),
         domains: NodeConfig.getValue<string[]>("DOMAINS"),
         landingPage: NodeConfig.getValue<string>("LANDING_PAGE")
     };

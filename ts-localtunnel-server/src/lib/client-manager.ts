@@ -60,7 +60,11 @@ export class ClientManager {
         clients.set(id, client);
 
         client.emitter.once('close', () => {
-            Logger.log('client close from emitter once');
+            Logger.log('client close from emitter once (id: ' + id + ')');
+            this.removeClient(id);
+        });
+        agent.emitter.once('offline', () => {
+            Logger.log('agent offline from emitter once (client id: ' + id + ')');
             this.removeClient(id);
         });
 

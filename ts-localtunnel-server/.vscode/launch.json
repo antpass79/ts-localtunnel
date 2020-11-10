@@ -7,7 +7,7 @@
     {
       "type": "node",
       "request": "launch",
-      "args": ["--ms", "11"],
+      "args": ["-a", "tunnelserver", "-p", "9000", "-d", "'localhost', '10.0.0.4', 'tunnelserver'"],
       "protocol": "inspector",
       "name": "Launch Program",
       "program": "${workspaceFolder}/build/entrypoint.js",

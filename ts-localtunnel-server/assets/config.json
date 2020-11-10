@@ -2,7 +2,7 @@
     "SECURE_PROTOCOL": false,
     "SERVER_ADDRESS": "localhost",
     "SERVER_PORT": 90,
-    "DOMAINS": ["localhost", "127.0.0.1", "tunnelserver"],
+    "DOMAINS": ["localhost", "127.0.0.1", "10.0.0.4", "tunnelserver"],
     "MAX_SOCKETS": 10,
     "LANDING_PAGE": "https://localtunnel.github.io/www/"
 }

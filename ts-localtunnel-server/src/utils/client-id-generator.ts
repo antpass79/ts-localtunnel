@@ -1,7 +1,11 @@
-import shortid from 'shortid';
+import namor from 'namor';
 
 export class ClientIdGenerator {
     static generate(): string {
-        return shortid.generate().toLowerCase();
+        return namor.generate({
+            words: 0,
+            saltLength: 6,
+            saltType: 'string'
+        });
     }
 }

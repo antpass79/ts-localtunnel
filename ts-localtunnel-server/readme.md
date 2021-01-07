@@ -12,6 +12,10 @@ npm run start -- -p 8000 -a tunnelserver.westeurope.cloudapp.azure.com -d localh
 
 npm run start -- -p 9000 -a tunnelserver.westeurope.cloudapp.azure.com -d localhost 10.0.0.4 tunnelserver tunnelserver.westeurope.cloudapp.azure.com 40.68.217.234 tunnelserver.com
 
+## How to configure IoC
+
+- <https://github.com/inversify/inversify-basic-example/blob/master/src/config/ioc_config.ts>
+
 ## References
 
 - <https://www.cloudinsidr.com/content/how-to-install-the-most-recent-version-of-openssl-on-windows-10-in-64-bit/>

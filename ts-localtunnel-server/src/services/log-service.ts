@@ -1,3 +1,8 @@
+import { inject, injectable } from "inversify";
+import { ILogService } from "../interfaces/log-service";
+import SERVICE_IDENTIFIER from "../ioc/identifiers";
+import container from "../ioc/inversify.config";
+
 var originalLog = console.log;
 var log = console.log;
 
@@ -25,17 +30,18 @@ console.log = function () {
     log.apply(console, [formatConsoleDate(new Date()) + first_parameter].concat(other_parameters));
 };
 
-export class Logger {
-    static log(message: string, ...params: any[]) {
+@injectable()
+export class ConsoleLogService implements ILogService {
+    log(message: string, ...params: any[]) {
         console.log(message, ...params);
     }
-    static warn(message: string, ...params: any[]) {
+    warn(message: string, ...params: any[]) {
         console.warn(message, ...params);
     }
-    static error(message: string, ...params: any[]) {
+    error(message: string, ...params: any[]) {
         console.error(message, ...params);
     }
-    static dump(data: any) {
+    dump(data: any) {
         originalLog(data);
     }
 }
@@ -43,28 +49,30 @@ export class Logger {
 export class LogScope {
     private _title: string;
     private _startTime: any;
+    private _logService: ILogService;
 
     constructor(title: string) {
+        this._logService = container.get<ILogService>(SERVICE_IDENTIFIER.LOG_SERVICE);
         this._startTime = process.hrtime();
 
         originalLog('');
         this._title = title.toUpperCase();
-        Logger.log(this._title);
+        this._logService.log(this._title);
     }
 
     log(message: string, ...params: any[]) {
         const tabMessage = '    ' + message;
-        Logger.log(tabMessage, ...params);
+        this._logService.log(tabMessage, ...params);
     }
     warn(message: string, ...params: any[]) {
         const tabMessage = '    ' + message;
-        Logger.warn(tabMessage, ...params);
+        this._logService.warn(tabMessage, ...params);
     }
     error(message: string, ...params: any[]) {
         const tabMessage = '    ' + message;
-        Logger.error(tabMessage, ...params);
+        this._logService.error(tabMessage, ...params);
     }
     dump(data: any) {
-        Logger.dump(data);
+        this._logService.dump(data);
     }
 }

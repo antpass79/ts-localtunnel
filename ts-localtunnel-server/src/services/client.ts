@@ -1,21 +1,27 @@
 import { EventEmitter } from 'events';
 import pump from 'pump';
 import http from 'http';
-import { Logger } from '../utils/logger';
+import { IClient } from '../interfaces/client';
+import { ILogService } from '../interfaces/log-service';
+import container from '../ioc/inversify.config';
+import SERVICE_IDENTIFIER from '../ioc/identifiers';
+import { ClientOptions } from '../options/client-options';
+import { ITunnelAgent } from '../interfaces/tunnel-agent';
+import { TunnelAgent } from './tunnel-agent';
 
-export class Client {
-    private graceTimeout: any;
-    private id: any;
-    private agent: any;
+export class Client implements IClient {
+    private logService: ILogService;
 
     private _emitter: EventEmitter;
-    get emitter() {
-        return this._emitter;
-    }
+    private graceTimeout: any;
+    private id: any;
+    private tunnelAgent: ITunnelAgent;
 
-    constructor(options: any) {
-        this.agent = this.agent = options.agent;
-        this.id = this.id = options.id;
+    constructor(options: ClientOptions) {
+        this.logService = container.get<ILogService>(SERVICE_IDENTIFIER.LOG_SERVICE);
+
+        this.tunnelAgent = options.tunnelAgent as ITunnelAgent;
+        this.id = options.id;
 
         // client is given a grace period in which they can connect before they are _removed_
         // this.graceTimeout = setTimeout(() => {
@@ -27,44 +33,48 @@ export class Client {
         this.listenAgent();
     }
 
-    stats() {
-        return this.agent.stats();
+    get stats() {
+        return this.tunnelAgent.stats;
+    }
+
+    async listen(): Promise<any> {
+        return await this.tunnelAgent.listen();
     }
 
     close() {
-        Logger.log('client is closed by close method');        
+        this.logService.log('client is closed by close method');        
         clearTimeout(this.graceTimeout);
-        this.agent.destroy();
-        this.emitter.emit('close');
+        this.tunnelAgent.destroy();
+        this._emitter.emit('close');
     }
 
     handleRequest(req: any, res: any) {
-        Logger.log('READ from url %s', req.url);
+        this.logService.log('READ from url %s', req.url);
 
         const opt = {
             path: req.url,
-            agent: this.agent,
+            agent: this.tunnelAgent as TunnelAgent,
             method: req.method,
             headers: req.headers
         };
 
         const clientReq = http.request(opt, (clientRes: any) => {
-            Logger.log('CLIENT - HANDLE REQUEST - BEFORE WRITE to url %s', req.url);
+            this.logService.log('CLIENT - HANDLE REQUEST - BEFORE WRITE to url %s', req.url);
             // write response code and headers
             res.writeHead(clientRes.statusCode, clientRes.headers);
 
-            Logger.log('CLIENT - HANDLE REQUEST - AFTER WRITE');
+            this.logService.log('CLIENT - HANDLE REQUEST - AFTER WRITE');
             // using pump is deliberate - see the pump docs for why
             pump(clientRes, res);
 
-            Logger.log('CLIENT - HANDLE REQUEST - AFTER PUMP');
+            this.logService.log('CLIENT - HANDLE REQUEST - AFTER PUMP');
         });
 
         // this can happen when underlying agent produces an error
         // in our case we 504 gateway error this?
         // if we have already sent headers?
         clientReq.once('error', (err) => {
-            Logger.log('CLIENT - HANDLE REQUEST - clientReq error');
+            this.logService.log('CLIENT - HANDLE REQUEST - clientReq error');
             // TODO(roman): if headers not sent - respond with gateway unavailable
         });
 
@@ -73,7 +83,7 @@ export class Client {
     }
 
     handleUpgrade(req: any, socket: any) {
-        Logger.log('READ from %s', req.url);
+        this.logService.log('READ from %s', req.url);
         
         socket.once('error', (err: any) => {
             // These client side errors can happen if the client dies while we are reading
@@ -81,11 +91,11 @@ export class Client {
             if (err.code == 'ECONNRESET' || err.code == 'ETIMEDOUT') {
                 return;
             }
-            Logger.error(err);
+            this.logService.error(err);
         });
 
-        this.agent.createConnection({}, (err: any, conn: any) => {
-            Logger.log('CLIENT - HANDLE UPGRADE - WRITE from %s', req.url);
+        this.tunnelAgent.createConnection({}, (err: any, conn: any) => {
+            this.logService.log('CLIENT - HANDLE UPGRADE - WRITE from %s', req.url);
             // any errors getting a connection mean we cannot service this request
             if (err) {
                 socket.end();
@@ -117,14 +127,23 @@ export class Client {
         });
     }
 
+    onOnceClose(listener: (...args: any[]) => void): this {
+        this._emitter.once('close', listener);
+        return this;
+    }
+    onOnceOffline(listener: (...args: any[]) => void): this {
+        this.tunnelAgent.onOffline(listener);
+        return this;
+    }
+
     private listenAgent() {
-        this.agent.on('online', () => {
-            Logger.log('client online %s', this.id);
+        this.tunnelAgent.onOnline(() => {
+            this.logService.log('client online %s', this.id);
             clearTimeout(this.graceTimeout);
         });
 
-        this.agent.on('offline', () => {
-            Logger.log('client offline %s', this.id);
+        this.tunnelAgent.onOffline(() => {
+            this.logService.log('client offline %s', this.id);
 
             // if there was a previous timeout set, we don't want to double trigger
             clearTimeout(this.graceTimeout);
@@ -137,8 +156,8 @@ export class Client {
 
         // TODO(roman): an agent error removes the client, the user needs to re-connect?
         // how does a user realize they need to re-connect vs some random client being assigned same port?
-        this.agent.once('error', (err: any) => {
+        this.tunnelAgent.onOnceError((err: any) => {
             this.close();
-        });        
+        });
     }
 }

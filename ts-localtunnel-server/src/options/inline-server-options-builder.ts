@@ -1,7 +1,9 @@
 import yargs from 'yargs';
-import { initTunnelServerOptions, ITunnelServerOptions } from "../models/tunnel-server-options";
+import { IServerOptionsBuilder } from '../interfaces/server-options-builder';
+import { initTunnelServerOptions, ITunnelServerOptions } from "./tunnel-server-options";
 
-export class InlineOptionsBuilder {
+export class InlineServerOptionsBuilder implements IServerOptionsBuilder {
+
     build(): ITunnelServerOptions {
         const argv = yargs
             .option('secure', {
@@ -38,8 +40,8 @@ export class InlineOptionsBuilder {
             .alias('help', 'h')    
             .parse(process.argv);
 
-        let options: ITunnelServerOptions = initTunnelServerOptions();
-        options.secure = argv.secure;
+        let options = initTunnelServerOptions();
+        options.secure = true;
         options.address = argv.address;
         options.port = argv.port;
         options.maxTcpSockets = argv["max-sockets"];

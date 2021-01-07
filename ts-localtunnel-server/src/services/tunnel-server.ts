@@ -1,17 +1,18 @@
-import { ClientIdGenerator } from '../utils/client-id-generator';
 import tldjs, { extractHostname, fromUserSettings, getDomain, getPublicSuffix, getSubdomain, isValid, isValidHostname, parse, tldExists } from 'tldjs';
 import Koa from 'koa';
 import Router from 'koa-router';
 import http, { IncomingMessage, ServerResponse } from 'http';
 import { AddressInfo } from 'net';
 
-import { ClientManager } from './client-manager';
-import { Logger, LogScope } from '../utils/logger';
-import { initTunnelServerOptions, ITunnelServerOptions } from '../models/tunnel-server-options';
+import { LogScope } from './log-service';
+import { initTunnelServerOptions, ITunnelServerOptions } from '../options/tunnel-server-options';
 import { Http2ServerRequest, Http2ServerResponse } from 'http2';
+import { ITunnelServer } from '../interfaces/tunnel-server';
+import { IClientManager } from '../interfaces/client-manager';
+import { ILogService } from '../interfaces/log-service';
+import { IServerOptionsResolver } from '../interfaces/server-options-resolver';
 
-export class TunnelServer {
-    private options: ITunnelServerOptions;
+export class TunnelServer implements ITunnelServer {
     private tldjs: {
         extractHostname: typeof extractHostname,
         isValidHostname: typeof isValidHostname,
@@ -24,33 +25,45 @@ export class TunnelServer {
         fromUserSettings: typeof fromUserSettings
     };
     private schema: string;
-    private appCallback: (req: IncomingMessage | Http2ServerRequest, res: ServerResponse | Http2ServerResponse) => Promise<void>;
+    private appCallback: (req: IncomingMessage | Http2ServerRequest, res: ServerResponse | Http2ServerResponse) => void;
 
-    private manager: ClientManager;
+    private logService: ILogService;
+    private clientManager: IClientManager;
     private koa: Koa;
     private router: Router;
 
-    constructor(options?: ITunnelServerOptions) {
-        this.options = options || initTunnelServerOptions();
-        const logScope: LogScope = new LogScope("TUNNEL SERVER - OPTIONS");
-        logScope.dump(this.options);
+    constructor(
+        koa: Koa,
+        router: Router,
+        logService: ILogService,
+        clientManager: IClientManager,
+        serverIptionsResolver: IServerOptionsResolver) {
+            this.logService = logService;
+            this.clientManager = clientManager;
+            this.koa = koa;
+            this.router = router;
+            this._options = serverIptionsResolver ? serverIptionsResolver.resolve() : initTunnelServerOptions();
 
-        let validHosts = (this.options.domains) ? this.options.domains : undefined;
-        this.tldjs = tldjs.fromUserSettings({ validHosts });
+            const logScope: LogScope = new LogScope("TUNNEL SERVER - OPTIONS");
+            logScope.dump(this.options);
 
-        this.schema = this.options.secure ? 'https' : 'http';
+            let validHosts = (this.options.domains) ? this.options.domains : undefined;
+            this.tldjs = tldjs.fromUserSettings({ validHosts });
 
-        this.manager = new ClientManager(this.options);
-        this.koa = new Koa();
-        this.router = new Router();
+            this.schema = this.options.secure ? 'https' : 'http';
 
-        this.listenRoutes();
-        this.configure();
+            this.listenRoutes();
+            this.configure();
 
-        this._server = http.createServer();
-        this.appCallback = this.koa.callback();
+            this._server = http.createServer();
+            this.appCallback = this.koa.callback();
 
-        this.listenServer();
+            this.listenServer();
+    }
+
+    private _options: ITunnelServerOptions;
+    get options(): ITunnelServerOptions {
+        return this._options;
     }
 
     private _server: http.Server;
@@ -62,24 +75,24 @@ export class TunnelServer {
         return this.server.address() as AddressInfo;
     }
 
-    listen(port: number, address: string) {
+    listen(port: number, address: string): void {
         this.server.listen(port, address, () => {
-            Logger.log('server listening on address %s://%s:%s', this.schema, this.addressInfo.address, this.addressInfo.port);
+            this.logService.log('server listening on address %s://%s:%s', this.schema, this.addressInfo.address, this.addressInfo.port);
         });
     }
 
-    start(handle: any) {
+    start(handle: any): void {
         this.server.listen(handle, () => {
             if (this.addressInfo) {
-                Logger.log('server listening on address %s://%s:%s', this.schema, this.addressInfo.address, this.addressInfo.port);
+                this.logService.log('server listening on address %s://%s:%s', this.schema, this.addressInfo.address, this.addressInfo.port);
             }
             else {
-                Logger.log('server listening on fake address');
+                this.logService.log('server listening on fake address');
             }
         });
     }
 
-    stop(handle: any) {
+    stop(handle: any): void {
         this.server.close(handle);
     }
 
@@ -102,10 +115,7 @@ export class TunnelServer {
             const isNewClientRequest = ctx.query['new'] !== undefined;
             logScope.log('isNewClientRequest? %s', isNewClientRequest);
             if (isNewClientRequest) {
-                const reqId = ClientIdGenerator.generate();
-                logScope.log('making new client with id %s', reqId);
-
-                const info = await this.manager.newClient(reqId);
+                const info = await this.clientManager.newClient();
                 const url = this.buildUrl(info, ctx.request.host);
 
                 info.url = url;
@@ -147,8 +157,8 @@ export class TunnelServer {
             }
     
             logScope.log('making new client with id %s', reqId);
-            const info = await this.manager.newClient(reqId);
-                const url = this.buildUrl(info, ctx.request.host);
+            const info = await this.clientManager.newClient(reqId);
+            const url = this.buildUrl(info, ctx.request.host);
 
             info.url = url;
             ctx.body = info;
@@ -160,7 +170,7 @@ export class TunnelServer {
         this.router.get('/api/status', async (ctx, next) => {
             const logScope: LogScope = new LogScope("TUNNEL SERVER - /api/status");
 
-            const stats = this.manager.stats;
+            const stats = this.clientManager.stats;
             ctx.body = {
                 tunnels: stats.tunnels,
                 mem: process.memoryUsage(),
@@ -173,13 +183,13 @@ export class TunnelServer {
             const clientId = ctx.params.id;
             logScope.log('clientId %s', clientId);
 
-            const client = this.manager.getClient(clientId);
+            const client = this.clientManager.getClient(clientId);
             if (!client) {
                 ctx.throw(404);
                 return;
             }
     
-            const stats = client.stats();
+            const stats = client.stats;
             ctx.body = {
                 connected_sockets: stats.connectedSockets,
             };
@@ -207,7 +217,7 @@ export class TunnelServer {
                 return;
             }
     
-            const client = this.manager.getClient(clientId);
+            const client = this.clientManager.getClient(clientId);
             if (!client) {
                 res.statusCode = 404;
                 res.end('404');
@@ -235,7 +245,7 @@ export class TunnelServer {
                 return;
             }
     
-            const client = this.manager.getClient(clientId);
+            const client = this.clientManager.getClient(clientId);
             if (!client) {
                 socket.destroy();
                 return;

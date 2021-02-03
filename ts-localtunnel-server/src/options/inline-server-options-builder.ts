@@ -36,14 +36,21 @@ export class InlineServerOptionsBuilder implements IServerOptionsBuilder {
                 description: 'maximum number of tcp sockets each client is allowed to establish at one time (the tunnels)',
                 default: 10
             })
+            .option('net-port', {
+                alias: 'np',
+                type: 'number',
+                description: 'specify the port to open by net server',
+                default: undefined
+            })
             .help()
             .alias('help', 'h')    
             .parse(process.argv);
 
         let options = initTunnelServerOptions();
-        options.secure = true;
+        options.secure = argv.secure;
         options.address = argv.address;
         options.port = argv.port;
+        options.netPort = argv['net-port'];
         options.maxTcpSockets = argv["max-sockets"];
         options.domains = argv.domains;
 

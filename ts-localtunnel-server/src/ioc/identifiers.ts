@@ -8,6 +8,7 @@ const SERVICE_IDENTIFIER = {
     CLIENT_MANAGER: Symbol.for("ClientManager"),
     TUNNEL_AGENT: Symbol.for("TunnelAgent"),
     TUNNEL_SERVER: Symbol.for("TunnelServer"),
+    SECURE_TUNNEL_SERVER: Symbol.for("SecureTunnelServer"),
     TUNNEL_AGENT_BUILDER: Symbol.for("TunnelAgentBuilder"),
     CLIENT_BUILDER: Symbol.for("ClientBuilder")
 };

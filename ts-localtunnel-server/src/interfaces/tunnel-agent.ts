@@ -4,7 +4,7 @@ import { TunnelAgentStatistics } from "../options/tunnel-agent-statistics";
 export interface ITunnelAgent {
     readonly stats: TunnelAgentStatistics;
 
-    listen(): Promise<any>;
+    listen(port: number | undefined): Promise<any>;
     createConnection(options: any, cb: any): void;
     destroy(): void;
 

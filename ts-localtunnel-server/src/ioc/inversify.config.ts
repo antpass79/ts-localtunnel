@@ -14,6 +14,7 @@ import { IServerOptionsBuilder } from "../interfaces/server-options-builder";
 import { IServerOptionsResolver } from "../interfaces/server-options-resolver";
 import { IClientManager } from "../interfaces/client-manager";
 import { ITunnelServer } from "../interfaces/tunnel-server";
+import { ISecureTunnelServer } from "../interfaces/secure-tunnel-server";
 import { ITunnelAgentBuilder } from "../interfaces/tunnel-agent-builder";
 import { IClientBuilder } from "../interfaces/client-builder";
 
@@ -22,6 +23,7 @@ import { InlineServerOptionsBuilder } from "../options/inline-server-options-bui
 import { ServerOptionsResolver } from "../options/server-options-resolver";
 import { ClientManager } from "../services/client-manager";
 import { TunnelServer } from "../services/tunnel-server";
+import { SecureTunnelServer } from "../services/secure-tunnel-server";
 import { TunnelAgentBuilder } from "../services/tunnel-agent-builder";
 import { ClientBuilder } from "../services/client-builder";
 
@@ -35,6 +37,10 @@ helpers.annotate(TunnelServer, [
     SERVICE_IDENTIFIER.LOG_SERVICE,
     SERVICE_IDENTIFIER.CLIENT_MANAGER,
     SERVICE_IDENTIFIER.SERVER_OPTIONS_RESOLVER
+]);
+helpers.annotate(SecureTunnelServer, [
+    SERVICE_IDENTIFIER.LOG_SERVICE,
+    SERVICE_IDENTIFIER.TUNNEL_SERVER
 ]);
 helpers.annotate(ClientManager, [
     SERVICE_IDENTIFIER.LOG_SERVICE,
@@ -59,6 +65,7 @@ container.bind<IServerOptionsBuilder>(SERVICE_IDENTIFIER.SERVER_OPTIONS_BUILDER)
 container.bind<IServerOptionsResolver>(SERVICE_IDENTIFIER.SERVER_OPTIONS_RESOLVER).to(ServerOptionsResolver).inSingletonScope();
 container.bind<IClientManager>(SERVICE_IDENTIFIER.CLIENT_MANAGER).to(ClientManager).inSingletonScope();
 container.bind<ITunnelServer>(SERVICE_IDENTIFIER.TUNNEL_SERVER).to(TunnelServer).inSingletonScope();
+container.bind<ISecureTunnelServer>(SERVICE_IDENTIFIER.SECURE_TUNNEL_SERVER).to(SecureTunnelServer).inSingletonScope();
 container.bind<ITunnelAgentBuilder>(SERVICE_IDENTIFIER.TUNNEL_AGENT_BUILDER).to(TunnelAgentBuilder).inSingletonScope();
 container.bind<IClientBuilder>(SERVICE_IDENTIFIER.CLIENT_BUILDER).to(ClientBuilder).inSingletonScope();
 

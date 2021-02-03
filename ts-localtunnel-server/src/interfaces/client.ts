@@ -4,7 +4,7 @@ import { TunnelAgentStatistics } from "../options/tunnel-agent-statistics";
 export interface IClient {
     readonly stats: any;
     
-    listen(): Promise<any>;
+    listen(port?: number | undefined): Promise<any>;
     close(): void;
 
     handleRequest(req: any, res: any): void;

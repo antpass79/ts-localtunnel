@@ -61,7 +61,7 @@ export class TunnelAgent extends Agent implements ITunnelAgent {
         };
     }
 
-    listen(): Promise<any> {
+    listen(port?: number | undefined): Promise<any> {
         const server = this.server;
         if (this.started) {
             throw new Error('already started');
@@ -79,7 +79,7 @@ export class TunnelAgent extends Agent implements ITunnelAgent {
         });
 
         return new Promise((resolve) => {
-            server.listen(() => {
+            server.listen(port, () => {
                 const port = (server.address() as net.AddressInfo).port;
                 this.logService.log('tcp server listening on port: %d', port);
 

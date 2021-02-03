@@ -37,8 +37,8 @@ export class Client implements IClient {
         return this.tunnelAgent.stats;
     }
 
-    async listen(): Promise<any> {
-        return await this.tunnelAgent.listen();
+    async listen(port?: number | undefined): Promise<any> {
+        return await this.tunnelAgent.listen(port);
     }
 
     close() {

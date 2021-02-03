@@ -37,12 +37,12 @@ export class TunnelServer implements ITunnelServer {
         router: Router,
         logService: ILogService,
         clientManager: IClientManager,
-        serverIptionsResolver: IServerOptionsResolver) {
+        serverOptionsResolver: IServerOptionsResolver) {
             this.logService = logService;
             this.clientManager = clientManager;
             this.koa = koa;
             this.router = router;
-            this._options = serverIptionsResolver ? serverIptionsResolver.resolve() : initTunnelServerOptions();
+            this._options = serverOptionsResolver ? serverOptionsResolver.resolve() : initTunnelServerOptions();
 
             const logScope: LogScope = new LogScope("TUNNEL SERVER - OPTIONS");
             logScope.dump(this.options);
@@ -210,13 +210,22 @@ export class TunnelServer implements ITunnelServer {
                 return;
             }
     
-            const clientId = this.getClientIdFromHostname(hostname);
+            // check if a subdomain exists without specifying --subdomain
+            const clientId = req.url.includes("new") ? null : this.getClientIdFromHostname(hostname);
             logScope.log('clientId %s', clientId);
-            if (!clientId) {
+            if (req.url.includes("new")) {
+                var slag = this.getClientIdFromHostname(hostname);
+                if (slag) {
+                    req.url = "/" + slag;
+                    req.headers.host = req.headers.host.replace(slag + ".", "");    
+                }
+                this.appCallback(req, res);
+                return;
+            } else if (!clientId) {
                 this.appCallback(req, res);
                 return;
             }
-    
+
             const client = this.clientManager.getClient(clientId);
             if (!client) {
                 res.statusCode = 404;

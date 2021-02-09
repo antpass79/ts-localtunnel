@@ -16,6 +16,10 @@ npm run start -- -p 9000 -a tunnelserver.westeurope.cloudapp.azure.com -d localh
 
 - <https://github.com/inversify/inversify-basic-example/blob/master/src/config/ioc_config.ts>
 
+## Certificates
+
+- <https://nodejs.org/en/knowledge/HTTP/servers/how-to-create-a-HTTPS-server/>
+
 ## References
 
 - <https://www.cloudinsidr.com/content/how-to-install-the-most-recent-version-of-openssl-on-windows-10-in-64-bit/>

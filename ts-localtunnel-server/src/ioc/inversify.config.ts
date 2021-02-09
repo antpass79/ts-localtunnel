@@ -28,6 +28,8 @@ import { TunnelAgentBuilder } from "../services/tunnel-agent-builder";
 import { ClientBuilder } from "../services/client-builder";
 
 import SERVICE_IDENTIFIER from "./identifiers";
+import { IFreePortService } from "../interfaces/free-port-service";
+import { FreePortService } from "../services/free-port-service";
 
 let container = new Container( { skipBaseClassChecks: true } );
 
@@ -57,6 +59,7 @@ helpers.annotate(TunnelAgentBuilder);
 helpers.annotate(ClientBuilder, [
     SERVICE_IDENTIFIER.TUNNEL_AGENT_BUILDER
 ]);
+helpers.annotate(FreePortService);
 
 container.bind<Koa>(SERVICE_IDENTIFIER.KOA).to(InjectableKoa).inSingletonScope();
 container.bind<Router>(SERVICE_IDENTIFIER.ROUTER).to(InjectableRouter).inSingletonScope();
@@ -68,5 +71,6 @@ container.bind<ITunnelServer>(SERVICE_IDENTIFIER.TUNNEL_SERVER).to(TunnelServer)
 container.bind<ISecureTunnelServer>(SERVICE_IDENTIFIER.SECURE_TUNNEL_SERVER).to(SecureTunnelServer).inSingletonScope();
 container.bind<ITunnelAgentBuilder>(SERVICE_IDENTIFIER.TUNNEL_AGENT_BUILDER).to(TunnelAgentBuilder).inSingletonScope();
 container.bind<IClientBuilder>(SERVICE_IDENTIFIER.CLIENT_BUILDER).to(ClientBuilder).inSingletonScope();
+container.bind<IFreePortService>(SERVICE_IDENTIFIER.FREE_PORT_SERVICE).to(FreePortService).inSingletonScope();
 
 export default container;

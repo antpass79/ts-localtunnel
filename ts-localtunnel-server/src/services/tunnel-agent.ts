@@ -1,17 +1,20 @@
 import { Agent } from 'http';
 import net from 'net';
 import { EventEmitter } from 'events';
+import portfinder from 'portfinder';
 import { ITunnelAgentOptions } from '../options/tunnel-agent-options';
 import { TunnelAgentStatistics } from '../options/tunnel-agent-statistics';
 import { ITunnelAgent } from '../interfaces/tunnel-agent';
 import { ILogService } from '../interfaces/log-service';
 import container from '../ioc/inversify.config';
 import SERVICE_IDENTIFIER from '../ioc/identifiers';
+import { IFreePortService } from '../interfaces/free-port-service';
 
 const DEFAULT_MAX_SOCKETS = 10;
 
 export class TunnelAgent extends Agent implements ITunnelAgent {
     private logService: ILogService;
+    private freePortService: IFreePortService;
 
     private _emitter: EventEmitter;
     private availableSockets: any;
@@ -33,6 +36,7 @@ export class TunnelAgent extends Agent implements ITunnelAgent {
         });
 
         this.logService = container.get<ILogService>(SERVICE_IDENTIFIER.LOG_SERVICE);
+        this.freePortService = container.get<IFreePortService>(SERVICE_IDENTIFIER.FREE_PORT_SERVICE);
 
         // sockets we can hand out via createConnection
         this.availableSockets = [];
@@ -61,7 +65,7 @@ export class TunnelAgent extends Agent implements ITunnelAgent {
         };
     }
 
-    listen(port?: number | undefined): Promise<any> {
+    listen(portRange?: number[] | undefined): Promise<any> {
         const server = this.server;
         if (this.started) {
             throw new Error('already started');
@@ -72,20 +76,22 @@ export class TunnelAgent extends Agent implements ITunnelAgent {
         server.on('connection', this._onConnection.bind(this));
         server.on('error', (err: any) => {
             // These errors happen from killed connections, we don't worry about them
-            this.logService.log(err);
+            this.logService.dump(err);
             if (err.code == 'ECONNRESET' || err.code == 'ETIMEDOUT') {
                 return;
             }
         });
 
-        return new Promise((resolve) => {
+        return new Promise(async (resolve) => {
+            let port = await this.freePortService.findPortAsync(portRange);
+
             server.listen(port, () => {
                 const port = (server.address() as net.AddressInfo).port;
                 this.logService.log('tcp server listening on port: %d', port);
 
                 resolve({
                     // port for lt client tcp connections
-                    port: port,
+                    port: port
                 });
             });
         });

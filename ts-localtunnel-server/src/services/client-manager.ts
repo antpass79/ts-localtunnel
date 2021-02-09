@@ -67,7 +67,7 @@ export class ClientManager implements IClientManager {
             });
 
         try {
-            const info = await client.listen(this.opt.netPort);
+            const info = await client.listen(this.opt.portRange);
             ++stats.tunnels;
             return {
                 id: newId,

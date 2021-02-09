@@ -36,9 +36,9 @@ export class InlineServerOptionsBuilder implements IServerOptionsBuilder {
                 description: 'maximum number of tcp sockets each client is allowed to establish at one time (the tunnels)',
                 default: 10
             })
-            .option('net-port', {
-                alias: 'np',
-                type: 'number',
+            .option('port-range', {
+                alias: 'pr',
+                type: 'array',
                 description: 'specify the port to open by net server',
                 default: undefined
             })
@@ -50,7 +50,7 @@ export class InlineServerOptionsBuilder implements IServerOptionsBuilder {
         options.secure = argv.secure;
         options.address = argv.address;
         options.port = argv.port;
-        options.netPort = argv['net-port'];
+        options.portRange = argv['port-range'];
         options.maxTcpSockets = argv["max-sockets"];
         options.domains = argv.domains;
 

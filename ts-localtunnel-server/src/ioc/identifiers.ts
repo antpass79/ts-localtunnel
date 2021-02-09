@@ -10,7 +10,8 @@ const SERVICE_IDENTIFIER = {
     TUNNEL_SERVER: Symbol.for("TunnelServer"),
     SECURE_TUNNEL_SERVER: Symbol.for("SecureTunnelServer"),
     TUNNEL_AGENT_BUILDER: Symbol.for("TunnelAgentBuilder"),
-    CLIENT_BUILDER: Symbol.for("ClientBuilder")
+    CLIENT_BUILDER: Symbol.for("ClientBuilder"),
+    FREE_PORT_SERVICE: Symbol.for("FreePortService")
 };
 
 export default SERVICE_IDENTIFIER;

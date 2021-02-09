@@ -37,8 +37,8 @@ export class Client implements IClient {
         return this.tunnelAgent.stats;
     }
 
-    async listen(port?: number | undefined): Promise<any> {
-        return await this.tunnelAgent.listen(port);
+    async listen(portRange?: number[] | undefined): Promise<any> {
+        return await this.tunnelAgent.listen(portRange);
     }
 
     close() {
@@ -75,6 +75,7 @@ export class Client implements IClient {
         // if we have already sent headers?
         clientReq.once('error', (err) => {
             this.logService.log('CLIENT - HANDLE REQUEST - clientReq error');
+            this.logService.dump(err);
             // TODO(roman): if headers not sent - respond with gateway unavailable
         });
 

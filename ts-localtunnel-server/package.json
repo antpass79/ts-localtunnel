@@ -43,6 +43,7 @@
     "koa-router": "^10.0.0",
     "localenv": "^0.2.2",
     "namor": "^2.0.2",
+    "portfinder": "^1.0.28",
     "reflect-metadata": "^0.1.13",
     "tldjs": "^2.3.1",
     "ts-node": "^9.1.1",

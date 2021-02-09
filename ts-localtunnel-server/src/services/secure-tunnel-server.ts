@@ -21,44 +21,44 @@ export class SecureTunnelServer {
         
             this._secureServer.on('request', (req, res) => {
                 logService.log('SecureTunnelServer.constructor => secureServer.request - url %s', req.url);
-                if (req.url === '/?new') {
-                    const auth = req.headers.authorization || '';
-                    if (auth === '') {
-                        logService.log('Rejecting new tunnel without secret: secret required.');
-                        res.writeHead(401);
-                        res.write('No authorization\n');
-                        return;
-                    }
+                // if (req.url === '/?new') {
+                //     const auth = req.headers.authorization || '';
+                //     if (auth === '') {
+                //         logService.log('Rejecting new tunnel without secret: secret required.');
+                //         res.writeHead(401);
+                //         res.write('No authorization\n');
+                //         return;
+                //     }
         
-                    const pieces = auth.split(' ');
+                //     const pieces = auth.split(' ');
         
-                    if (pieces.length !== 2) {
-                        logService.log('Rejecting new tunnel without secret: invalid authentication header format.');
-                        res.writeHead(401);
-                        res.write('No authorization\n');
-                        return;
-                    }
+                //     if (pieces.length !== 2) {
+                //         logService.log('Rejecting new tunnel without secret: invalid authentication header format.');
+                //         res.writeHead(401);
+                //         res.write('No authorization\n');
+                //         return;
+                //     }
         
-                    if (pieces[0] !== 'Basic') {
-                        logService.log('Rejecting new tunnel without secret: invalid authentication type.');
-                        res.writeHead(401);
-                        res.write('No authorization\n');
-                        return;
-                    }
+                //     if (pieces[0] !== 'Basic') {
+                //         logService.log('Rejecting new tunnel without secret: invalid authentication type.');
+                //         res.writeHead(401);
+                //         res.write('No authorization\n');
+                //         return;
+                //     }
         
-                    const authData = pieces[1];
+                //     const authData = pieces[1];
         
-                    const decoded = Buffer.from(authData, 'base64').toString('ascii');
+                //     const decoded = Buffer.from(authData, 'base64').toString('ascii');
         
-                    const authPieces = decoded.split(':');
+                //     const authPieces = decoded.split(':');
         
-                    if (authPieces[1] !== "foo") {
-                        logService.log('Rejecting new tunnel without secret: invalid authentication secret.');
-                        res.writeHead(401);
-                        res.write('No authorization\n');
-                        return;
-                    }
-                }
+                //     if (authPieces[1] !== "foo") {
+                //         logService.log('Rejecting new tunnel without secret: invalid authentication secret.');
+                //         res.writeHead(401);
+                //         res.write('No authorization\n');
+                //         return;
+                //     }
+                // }
                 tunnelServer.server.emit('request', req, res);
             });
         
